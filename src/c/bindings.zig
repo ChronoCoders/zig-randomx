@@ -8,6 +8,8 @@ pub const hash_size: usize = @intCast(c.RANDOMX_HASH_SIZE);
 
 pub const Flags = u32;
 
+pub const flag_full_mem: Flags = @intCast(c.RANDOMX_FLAG_FULL_MEM);
+
 pub const flag_mask: Flags =
     @as(Flags, @intCast(c.RANDOMX_FLAG_LARGE_PAGES)) |
     @as(Flags, @intCast(c.RANDOMX_FLAG_HARD_AES)) |
@@ -51,7 +53,15 @@ pub fn releaseDataset(dataset: *Dataset) void {
     c.randomx_release_dataset(dataset);
 }
 
-pub fn createVm(flags: Flags, cache: *Cache, dataset: ?*Dataset) ?*Vm {
+pub fn datasetItemCount() usize {
+    return @intCast(c.randomx_dataset_item_count());
+}
+
+pub fn initDataset(dataset: *Dataset, cache: *Cache, start_item: usize, item_count: usize) void {
+    c.randomx_init_dataset(dataset, cache, @intCast(start_item), @intCast(item_count));
+}
+
+pub fn createVm(flags: Flags, cache: ?*Cache, dataset: ?*Dataset) ?*Vm {
     return c.randomx_create_vm(toC(flags), cache, dataset);
 }
 
@@ -88,4 +98,8 @@ test "flag mask contains the default flag set" {
 
 test "hash size matches the C constant" {
     try std.testing.expectEqual(@as(usize, 32), hash_size);
+}
+
+test "dataset item count is non-zero" {
+    try std.testing.expect(datasetItemCount() > 0);
 }

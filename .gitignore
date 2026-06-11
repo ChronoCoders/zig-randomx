@@ -1,8 +1,6 @@
 .zig-cache/
 zig-cache/
 zig-out/
-build.log
-build.rc
-test.log
-test.rc
+*.log
+*.rc
 *.o

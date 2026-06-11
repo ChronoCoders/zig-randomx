@@ -3,6 +3,7 @@ const bindings = @import("c/bindings.zig");
 
 pub const Flags = bindings.Flags;
 pub const flag_default: Flags = 0;
+pub const flag_full_mem: Flags = bindings.flag_full_mem;
 pub const hash_size = bindings.hash_size;
 pub const Hash = [hash_size]u8;
 
@@ -36,6 +37,29 @@ pub const Cache = struct {
     }
 };
 
+pub const Dataset = struct {
+    allocator: std.mem.Allocator,
+    handle: *bindings.Dataset,
+
+    pub fn itemCount() usize {
+        return bindings.datasetItemCount();
+    }
+
+    pub fn init(allocator: std.mem.Allocator, flags: Flags) Error!Dataset {
+        try validateFlags(flags);
+        const handle = bindings.allocDataset(flags) orelse return Error.AllocationFailed;
+        return .{ .allocator = allocator, .handle = handle };
+    }
+
+    pub fn fill(self: Dataset, cache: Cache, start_item: usize, item_count: usize) void {
+        bindings.initDataset(self.handle, cache.handle, start_item, item_count);
+    }
+
+    pub fn deinit(self: Dataset) void {
+        bindings.releaseDataset(self.handle);
+    }
+};
+
 pub const Vm = struct {
     allocator: std.mem.Allocator,
     handle: *bindings.Vm,
@@ -43,6 +67,12 @@ pub const Vm = struct {
     pub fn init(allocator: std.mem.Allocator, flags: Flags, cache: Cache) Error!Vm {
         try validateFlags(flags);
         const handle = bindings.createVm(flags, cache.handle, null) orelse return Error.InitFailed;
+        return .{ .allocator = allocator, .handle = handle };
+    }
+
+    pub fn initFast(allocator: std.mem.Allocator, flags: Flags, dataset: Dataset) Error!Vm {
+        try validateFlags(flags);
+        const handle = bindings.createVm(flags | flag_full_mem, null, dataset.handle) orelse return Error.InitFailed;
         return .{ .allocator = allocator, .handle = handle };
     }
 
@@ -154,4 +184,25 @@ test "hashBatch on empty input returns an empty slice" {
     const batch = try hashBatch(vm, &empty, allocator);
     defer allocator.free(batch);
     try std.testing.expectEqual(@as(usize, 0), batch.len);
+}
+
+test "Dataset.itemCount is non-zero" {
+    try std.testing.expect(Dataset.itemCount() > 0);
+}
+
+test "fast-mode VM from a dataset produces consistent hashes" {
+    const allocator = std.testing.allocator;
+    var cache = try Cache.init(allocator, flag_default, test_key);
+    defer cache.deinit();
+
+    var dataset = try Dataset.init(allocator, flag_full_mem);
+    defer dataset.deinit();
+    dataset.fill(cache, 0, 1);
+
+    var vm = try Vm.initFast(allocator, flag_default, dataset);
+    defer vm.deinit();
+
+    const first = hash(vm, test_input);
+    const second = hash(vm, test_input);
+    try std.testing.expectEqualSlices(u8, &first, &second);
 }

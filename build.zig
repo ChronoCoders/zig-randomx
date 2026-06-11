@@ -112,6 +112,25 @@ pub fn build(b: *std.Build) void {
     vm_tests.linkLibC();
     vm_tests.linkLibCpp();
 
+    const bench = b.addExecutable(.{
+        .name = "bench",
+        .root_source_file = b.path("src/bench.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    bench.root_module.addImport("randomx", module);
+    bench.addIncludePath(b.path(randomx_root));
+    bench.linkLibrary(lib);
+    bench.linkLibC();
+    bench.linkLibCpp();
+    b.installArtifact(bench);
+
+    const run_bench = b.addRunArtifact(bench);
+    run_bench.step.dependOn(b.getInstallStep());
+    if (b.args) |bench_args| run_bench.addArgs(bench_args);
+    const bench_step = b.step("bench", "Build and run the benchmark");
+    bench_step.dependOn(&run_bench.step);
+
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const run_hash_tests = b.addRunArtifact(hash_tests);
     const run_vm_tests = b.addRunArtifact(vm_tests);
