@@ -71,12 +71,14 @@ pub fn main() !void {
     const config = try parseArgs(args);
 
     const stdout = std.io.getStdOut().writer();
+    const flags = randomx.recommendedFlags();
+    try std.io.getStdErr().writer().print("flags:      0x{x}\n\n", .{flags});
 
-    var cache = try randomx.Cache.init(allocator, randomx.flag_default, config.key);
+    var cache = try randomx.Cache.init(allocator, flags, config.key);
     defer cache.deinit();
 
     {
-        var vm = try randomx.Vm.init(allocator, randomx.flag_default, cache);
+        var vm = try randomx.Vm.init(allocator, flags, cache);
         defer vm.deinit();
         const result = try runBench(vm, config.seconds);
         try printResult(stdout, "light", config.seconds, result);
@@ -85,11 +87,11 @@ pub fn main() !void {
     try stdout.writeAll("\n");
 
     {
-        var dataset = try randomx.Dataset.init(allocator, randomx.flag_full_mem);
+        var dataset = try randomx.Dataset.init(allocator, flags);
         defer dataset.deinit();
         dataset.fill(cache, 0, randomx.Dataset.itemCount());
 
-        var vm = try randomx.Vm.initFast(allocator, randomx.flag_default, dataset);
+        var vm = try randomx.Vm.initFast(allocator, flags, dataset);
         defer vm.deinit();
         const result = try runBench(vm, config.seconds);
         try printResult(stdout, "fast", config.seconds, result);
