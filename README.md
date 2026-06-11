@@ -26,7 +26,7 @@ zig build
 zig build test
 ```
 
-All 19 tests must pass.
+All 20 tests must pass.
 
 ## API
 
@@ -53,13 +53,26 @@ var vm = try rx.Vm.initFast(allocator, rx.recommendedFlags(), dataset);
 defer vm.deinit();
 ```
 
+Initializing the full dataset on a single thread is slow. `Dataset.fillParallel`
+splits the item range across N threads writing to non-overlapping ranges (no locks).
+Pass 0 for the thread count to auto-detect the CPU count:
+
+```zig
+var dataset = try rx.Dataset.init(allocator, rx.recommendedFlags());
+defer dataset.deinit();
+try dataset.fillParallel(cache, 0, allocator);
+
+var vm = try rx.Vm.initFast(allocator, rx.recommendedFlags(), dataset);
+defer vm.deinit();
+```
+
 ## Benchmark
 
 Measured on WSL2 Ubuntu, Ryzen 9 5900X, JIT + AES-NI + AVX2 (flags 0x6a):
 
 ```sh
 zig build -Doptimize=ReleaseFast
-./zig-out/bin/bench --seconds 30 --key ferrous
+./zig-out/bin/bench --seconds 30 --threads 0 --key ferrous
 ```
 
 ```
@@ -68,11 +81,16 @@ duration:   30s
 hashrate:   23.9 h/s
 
 mode:       fast
+threads:    24
+init:       2.6s
 duration:   30s
 hashrate:   187.9 h/s
 ```
 
 Fast mode is ~8x light mode. Native Linux bare-metal numbers will be higher.
+
+The `--threads` flag controls how many threads initialize the dataset (default 0,
+auto-detect). Fast mode reports the thread count and dataset init time.
 
 ## License
 
