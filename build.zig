@@ -112,6 +112,17 @@ pub fn build(b: *std.Build) void {
     vm_tests.linkLibC();
     vm_tests.linkLibCpp();
 
+    const dataset_parallel_tests = b.addTest(.{
+        .root_source_file = b.path("tests/dataset_parallel_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    dataset_parallel_tests.root_module.addImport("randomx", module);
+    dataset_parallel_tests.addIncludePath(b.path(randomx_root));
+    dataset_parallel_tests.linkLibrary(lib);
+    dataset_parallel_tests.linkLibC();
+    dataset_parallel_tests.linkLibCpp();
+
     const bench = b.addExecutable(.{
         .name = "bench",
         .root_source_file = b.path("src/bench.zig"),
@@ -134,11 +145,13 @@ pub fn build(b: *std.Build) void {
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const run_hash_tests = b.addRunArtifact(hash_tests);
     const run_vm_tests = b.addRunArtifact(vm_tests);
+    const run_dataset_parallel_tests = b.addRunArtifact(dataset_parallel_tests);
 
     const test_step = b.step("test", "Run all tests");
     test_step.dependOn(&run_unit_tests.step);
     test_step.dependOn(&run_hash_tests.step);
     test_step.dependOn(&run_vm_tests.step);
+    test_step.dependOn(&run_dataset_parallel_tests.step);
 
     b.installArtifact(lib);
 }

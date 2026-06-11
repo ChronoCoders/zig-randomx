@@ -4,6 +4,7 @@ const randomx = @import("randomx");
 const Config = struct {
     seconds: u64,
     key: []const u8,
+    threads: usize,
 };
 
 const ParseError = error{
@@ -18,7 +19,7 @@ const Result = struct {
 };
 
 fn parseArgs(args: [][:0]u8) ParseError!Config {
-    var config = Config{ .seconds = 10, .key = "benchmark" };
+    var config = Config{ .seconds = 10, .key = "benchmark", .threads = 0 };
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -30,6 +31,10 @@ fn parseArgs(args: [][:0]u8) ParseError!Config {
             i += 1;
             if (i >= args.len) return ParseError.MissingValue;
             config.key = args[i];
+        } else if (std.mem.eql(u8, arg, "--threads")) {
+            i += 1;
+            if (i >= args.len) return ParseError.MissingValue;
+            config.threads = std.fmt.parseInt(usize, args[i], 10) catch return ParseError.InvalidNumber;
         } else {
             return ParseError.UnknownArgument;
         }
@@ -87,13 +92,27 @@ pub fn main() !void {
     try stdout.writeAll("\n");
 
     {
+        var threads = config.threads;
+        if (threads == 0) threads = std.Thread.getCpuCount() catch 1;
+
         var dataset = try randomx.Dataset.init(allocator, flags);
         defer dataset.deinit();
-        dataset.fill(cache, 0, randomx.Dataset.itemCount());
+
+        var init_timer = std.time.Timer.start() catch return error.Timer;
+        try dataset.fillParallel(cache, threads, allocator);
+        const init_s = @as(f64, @floatFromInt(init_timer.read())) / std.time.ns_per_s;
 
         var vm = try randomx.Vm.initFast(allocator, flags, dataset);
         defer vm.deinit();
         const result = try runBench(vm, config.seconds);
-        try printResult(stdout, "fast", config.seconds, result);
+
+        const elapsed_s = @as(f64, @floatFromInt(result.elapsed_ns)) / std.time.ns_per_s;
+        const rate = @as(f64, @floatFromInt(result.hashes)) / elapsed_s;
+        try stdout.print("mode:       fast\n", .{});
+        try stdout.print("threads:    {d}\n", .{threads});
+        try stdout.print("init:       {d:.1}s\n", .{init_s});
+        try stdout.print("duration:   {d}s\n", .{config.seconds});
+        try stdout.print("hashes:     {d}\n", .{result.hashes});
+        try stdout.print("hashrate:   {d:.1} h/s\n", .{rate});
     }
 }

@@ -55,6 +55,36 @@ pub const Dataset = struct {
         bindings.initDataset(self.handle, cache.handle, start_item, item_count);
     }
 
+    pub fn fillParallel(self: *Dataset, cache: Cache, threads: usize, allocator: std.mem.Allocator) Error!void {
+        const total = bindings.datasetItemCount();
+        var count = threads;
+        if (count == 0) count = std.Thread.getCpuCount() catch 1;
+        if (count == 0) count = 1;
+        if (count > total) count = total;
+
+        if (count <= 1) {
+            bindings.initDataset(self.handle, cache.handle, 0, total);
+            return;
+        }
+
+        const workers = allocator.alloc(std.Thread, count) catch return Error.AllocationFailed;
+        defer allocator.free(workers);
+
+        const per = total / count;
+        var spawned: usize = 0;
+        errdefer {
+            for (workers[0..spawned]) |worker| worker.join();
+        }
+
+        while (spawned < count) : (spawned += 1) {
+            const start = spawned * per;
+            const items = if (spawned == count - 1) total - start else per;
+            workers[spawned] = std.Thread.spawn(.{}, bindings.initDataset, .{ self.handle, cache.handle, start, items }) catch return Error.InitFailed;
+        }
+
+        for (workers[0..spawned]) |worker| worker.join();
+    }
+
     pub fn deinit(self: Dataset) void {
         bindings.releaseDataset(self.handle);
     }
