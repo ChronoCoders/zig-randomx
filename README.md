@@ -68,7 +68,7 @@ defer vm.deinit();
 
 ## Benchmark
 
-Measured on WSL2 Ubuntu, Ryzen 9 5900X, JIT + AES-NI + AVX2 (flags 0x6a):
+Measured on WSL2 Ubuntu, JIT + AES-NI + AVX2 (flags 0x6a):
 
 ```sh
 zig build -Doptimize=ReleaseFast
