@@ -81,8 +81,8 @@ duration:   30s
 hashrate:   23.9 h/s
 
 mode:       fast
-threads:    24
-init:       2.6s
+threads:    4
+init:       26.2s
 duration:   30s
 hashrate:   187.9 h/s
 ```
